@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2015 Andras Mamenyak
  *
- * min.cu
+ * sort.cu
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,11 +25,11 @@
 #include <memory>
 
 /**
- * find minimum in @array of size @n
- * store index of min in @index
+ * sort @array of size @n
+ * store result in @sorted
  * each value is tested against each value (like a matrix)
  */
-__global__ void min_cu(const int* array, int n, int* index)
+__global__ void sort_cu(int n, const int* array, int* sorted)
 {
   __shared__ int res;
   res = 0;
@@ -39,44 +39,40 @@ __global__ void min_cu(const int* array, int n, int* index)
 
   __syncthreads();
 
-  if (array[i] <= array[j])
+  if ((array[i] > array[j]) || (i > j && array[i] == array[j]))
     atomicAdd((unsigned int*) &res, 1);
 
   __syncthreads();
 
-  if (res == n)
-    *index = i;
+  sorted[res] = array[i];
 }
 
 /**
  * handles CUDA memory operations
- * call the CUDA min search
+ * call the CUDA sort
  */
-int min(const int* array, int n)
+void sort(int n, const int* array, int* sorted)
 {
   int* d_array;
   cudaMalloc((void**) &d_array, n*sizeof(int));
   cudaMemcpy(d_array, array, n*sizeof(int), cudaMemcpyHostToDevice);
 
-  int* d_index;
-  cudaMalloc((void**) &d_index, sizeof(int));
+  int* d_sorted;
+  cudaMalloc((void**) &d_sorted, n*sizeof(int));
   
   std::chrono::time_point<std::chrono::system_clock> start, end;
 
   start = std::chrono::system_clock::now();
-  min_cu<<<n, n>>>(d_array, n, d_index);
+  sort_cu<<<n, n>>>(n, d_array, d_sorted);
   end = std::chrono::system_clock::now();
 
   std::chrono::duration<double> duration = end - start;
   std::cerr << std::fixed << std::setprecision(10) << duration.count() << " sec\n";
 
-  int index;
-  cudaMemcpy(&index, d_index, sizeof(int), cudaMemcpyDeviceToHost);
+  cudaMemcpy(sorted, d_sorted, n*sizeof(int), cudaMemcpyDeviceToHost);
 
   cudaFree(d_array);
-  cudaFree(d_index);
-
-  return index;
+  cudaFree(d_sorted);
 }
 
 int main()
@@ -98,11 +94,18 @@ int main()
     }
     std::cerr << std::endl;
 
-    int index = min(array, n);
+    int* sorted = new int[n];
 
-    std::cerr << "min index: " << index << std::endl << std::endl;
+    sort(n, array, sorted);
+
+    for (int i = 0; i < n; i++)
+    {
+      std::cerr << sorted[i] << " ";
+    }
+    std::cerr << std::endl;
 
     delete[] array;
+    delete[] sorted;
   }
 
   for (int n : { 10, 100, 1000 })
@@ -117,10 +120,13 @@ int main()
         array[i] = dis(gen);
       }
 
+      int* sorted = new int[n];
+
       std::cerr << "N: " << n << " M: " << m << std::endl;
-      int index = min(array, n);
+      sort(n, array, sorted);
 
       delete[] array;
+      delete[] sorted;
     }
   }
 
