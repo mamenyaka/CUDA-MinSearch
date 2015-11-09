@@ -29,7 +29,7 @@
  * store result in @sorted
  * each value is tested against each value (like a matrix)
  */
-__global__ void sort_cu(int n, const int* array, int* sorted)
+__global__ void sort_cu(const int* array, int* sorted)
 {
   __shared__ int res;
   res = 0;
@@ -63,7 +63,7 @@ void sort(int n, const int* array, int* sorted)
   std::chrono::time_point<std::chrono::system_clock> start, end;
 
   start = std::chrono::system_clock::now();
-  sort_cu<<<n, n>>>(n, d_array, d_sorted);
+  sort_cu<<<n, n>>>(d_array, d_sorted);
   end = std::chrono::system_clock::now();
 
   std::chrono::duration<double> duration = end - start;
